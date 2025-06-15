@@ -1,3 +1,4 @@
+
 // 部署完成后在网址后面加上这个，获取自建节点和机场聚合节点，/?token=auto或/auto或
 
 let mytoken = 'auto';
@@ -9,8 +10,6 @@ let FileName = 'CF-Workers-SUB';
 let SUBUpdateTime = 6; //自定义订阅更新时间，单位小时
 let total = 99;//TB
 let timestamp = 4102329600000;//2099-12-31
-let adminUsername = ''; // 管理员用户名
-let adminPassword = ''; // 管理员密码
 
 //节点链接 + 订阅链接
 let MainData = `
@@ -33,9 +32,6 @@ export default {
 		ChatID = env.TGID || ChatID;
 		TG = env.TG || TG;
 		subConverter = env.SUBAPI || subConverter;
-		adminUsername = env.ADMIN_USERNAME || adminUsername;
-		adminPassword = env.ADMIN_PASSWORD || adminPassword;
-
 		if (subConverter.includes("http://")) {
 			subConverter = subConverter.split("//")[1];
 			subProtocol = 'http';
@@ -73,22 +69,6 @@ export default {
 			if (env.KV) {
 				await 迁移地址列表(env, 'LINK.txt');
 				if (userAgent.includes('mozilla') && !url.search) {
-					// 检查基本认证
-					if (adminUsername && adminPassword) {
-						// 获取认证头信息
-						const authHeader = request.headers.get('Authorization');
-						if (!authHeader || !isValidAuth(authHeader, adminUsername, adminPassword)) {
-							await sendMessage(`#登录尝试 ${FileName}`, request.headers.get('CF-Connecting-IP'), `UA: ${userAgentHeader}</tg-spoiler>\n域名: ${url.hostname}\n<tg-spoiler>入口: ${url.pathname + url.search}</tg-spoiler>`);
-							// 返回要求认证的响应
-							return new Response('Authentication required', {
-								status: 401,
-								headers: {
-									'WWW-Authenticate': 'Basic realm="Secure Area"',
-									'Content-Type': 'text/html; charset=UTF-8'
-								}
-							});
-						}
-					}
 					await sendMessage(`#编辑订阅 ${FileName}`, request.headers.get('CF-Connecting-IP'), `UA: ${userAgentHeader}</tg-spoiler>\n域名: ${url.hostname}\n<tg-spoiler>入口: ${url.pathname + url.search}</tg-spoiler>`);
 					return await KV(request, env, 'LINK.txt', 访客订阅);
 				} else {
@@ -244,27 +224,6 @@ export default {
 		}
 	}
 };
-
-// 检查基本认证是否有效
-function isValidAuth(authHeader, username, password) {
-	// 检查是否以"Basic "开头
-	if (!authHeader.startsWith('Basic ')) {
-		return false;
-	}
-	
-	// 解码Base64编码的凭据
-	try {
-		const base64Credentials = authHeader.split(' ')[1];
-		const credentials = atob(base64Credentials);
-		const [user, pass] = credentials.split(':');
-		
-		// 验证用户名和密码
-		return user === username && pass === password;
-	} catch (e) {
-		console.error("认证解析错误:", e);
-		return false;
-	}
-}
 
 async function ADD(envadd) {
 	var addtext = envadd.replace(/[	"'|\r\n]+/g, '\n').replace(/\n+/g, '\n');	// 替换为换行
