@@ -11,6 +11,8 @@ let total = 99;//TB
 let timestamp = 4102329600000;//2099-12-31
 let adminUsername = ''; // 管理员用户名
 let adminPassword = ''; // 管理员密码
+let BarkKey = ''; // Bark 设备Key
+let BarkServer = 'https://api.day.app'; // Bark 服务器地址
 
 //节点链接 + 订阅链接
 let MainData = `
@@ -35,6 +37,26 @@ export default {
 		subConverter = env.SUBAPI || subConverter;
 		adminUsername = env.ADMIN_USERNAME || adminUsername;
 		adminPassword = env.ADMIN_PASSWORD || adminPassword;
+		BarkKey = env.BARK_KEY || BarkKey;
+		BarkServer = env.BARK_SERVER || BarkServer;
+
+		if (BarkKey) {
+			if (BarkKey.startsWith('http://') || BarkKey.startsWith('https://')) {
+				try {
+					const bUrl = new URL(BarkKey);
+					BarkServer = bUrl.origin;
+					BarkKey = bUrl.pathname.replace(/^\/+/, '');
+				} catch (e) {
+					console.error('BarkKey 解析错误:', e);
+				}
+			}
+		}
+		if (BarkServer) {
+			if (!BarkServer.startsWith('http://') && !BarkServer.startsWith('https://')) {
+				BarkServer = 'https://' + BarkServer;
+			}
+			BarkServer = BarkServer.replace(/\/+$/, '');
+		}
 
 		if (subConverter.includes("http://")) {
 			subConverter = subConverter.split("//")[1];
@@ -89,7 +111,7 @@ export default {
 							});
 						}
 					}
-					await sendMessage(`#编辑订阅 ${FileName}`, request.headers.get('CF-Connecting-IP'), `UA: ${userAgentHeader}</tg-spoiler>\n域名: ${url.hostname}\n<tg-spoiler>入口: ${url.pathname + url.search}</tg-spoiler>`);
+					await sendMessage(`#登录管理 ${FileName}`, request.headers.get('CF-Connecting-IP'), `UA: ${userAgentHeader}</tg-spoiler>\n域名: ${url.hostname}\n<tg-spoiler>入口: ${url.pathname + url.search}</tg-spoiler>`);
 					return await KV(request, env, 'LINK.txt', 访客订阅);
 				} else {
 					MainData = await env.KV.get('LINK.txt') || MainData;
@@ -112,19 +134,20 @@ export default {
 			urls = await ADD(订阅链接);
 			await sendMessage(`#获取订阅 ${FileName}`, request.headers.get('CF-Connecting-IP'), `UA: ${userAgentHeader}</tg-spoiler>\n域名: ${url.hostname}\n<tg-spoiler>入口: ${url.pathname + url.search}</tg-spoiler>`);
 
+			const isSubConverterRequest = request.headers.get('subconverter-request') || request.headers.get('subconverter-version') || userAgent.includes('subconverter');
 			let 订阅格式 = 'base64';
-			if (userAgent.includes('null') || userAgent.includes('subconverter') || userAgent.includes('nekobox') || userAgent.includes(('CF-Workers-SUB').toLowerCase())) {
-				订阅格式 = 'base64';
-			} else if (userAgent.includes('clash') || (url.searchParams.has('clash') && !userAgent.includes('subconverter'))) {
-				订阅格式 = 'clash';
-			} else if (userAgent.includes('sing-box') || userAgent.includes('singbox') || ((url.searchParams.has('sb') || url.searchParams.has('singbox')) && !userAgent.includes('subconverter'))) {
-				订阅格式 = 'singbox';
-			} else if (userAgent.includes('surge') || (url.searchParams.has('surge') && !userAgent.includes('subconverter'))) {
-				订阅格式 = 'surge';
-			} else if (userAgent.includes('quantumult%20x') || (url.searchParams.has('quanx') && !userAgent.includes('subconverter'))) {
-				订阅格式 = 'quanx';
-			} else if (userAgent.includes('loon') || (url.searchParams.has('loon') && !userAgent.includes('subconverter'))) {
-				订阅格式 = 'loon';
+			if (!(userAgent.includes('null') || isSubConverterRequest || userAgent.includes('nekobox') || userAgent.includes(('CF-Workers-SUB').toLowerCase()))) {
+				if (userAgent.includes('sing-box') || userAgent.includes('singbox') || url.searchParams.has('sb') || url.searchParams.has('singbox')) {
+					订阅格式 = 'singbox';
+				} else if (userAgent.includes('surge') || url.searchParams.has('surge')) {
+					订阅格式 = 'surge';
+				} else if (userAgent.includes('quantumult') || url.searchParams.has('quanx')) {
+					订阅格式 = 'quanx';
+				} else if (userAgent.includes('loon') || url.searchParams.has('loon')) {
+					订阅格式 = 'loon';
+				} else if (userAgent.includes('clash') || userAgent.includes('meta') || userAgent.includes('mihomo') || url.searchParams.has('clash')) {
+					订阅格式 = 'clash';
+				}
 			}
 
 			let subConverterUrl;
@@ -140,10 +163,25 @@ export default {
 			else if (url.searchParams.has('quanx')) 追加UA = 'Quantumult%20X';
 			else if (url.searchParams.has('loon')) 追加UA = 'Loon';
 
-			const 请求订阅响应内容 = await getSUB(urls, request, 追加UA, userAgentHeader);
-			console.log(请求订阅响应内容);
-			req_data += 请求订阅响应内容[0].join('\n');
-			订阅转换URL += "|" + 请求订阅响应内容[1];
+			const 订阅链接数组 = [...new Set(urls)].filter(item => item?.trim?.()); // 去重
+			if (订阅链接数组.length > 0) {
+				const 请求订阅响应内容 = await getSUB(订阅链接数组, request, 追加UA, userAgentHeader);
+				console.log(请求订阅响应内容);
+				req_data += 请求订阅响应内容[0].join('\n');
+				订阅转换URL += "|" + 请求订阅响应内容[1];
+				if (订阅格式 == 'base64' && !isSubConverterRequest && 请求订阅响应内容[1].includes('://')) {
+					subConverterUrl = `${subProtocol}://${subConverter}/sub?target=mixed&url=${encodeURIComponent(请求订阅响应内容[1])}&insert=false&config=${encodeURIComponent(subConfig)}&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
+					try {
+						const subConverterResponse = await fetch(subConverterUrl, { headers: { 'User-Agent': 'v2rayN/CF-Workers-SUB  (https://github.com/cmliu/CF-Workers-SUB)' } });
+						if (subConverterResponse.ok) {
+							const subConverterContent = await subConverterResponse.text();
+							req_data += '\n' + atob(subConverterContent);
+						}
+					} catch (error) {
+						console.log('订阅转换请回base64失败，检查订阅转换后端是否正常运行');
+					}
+				}
+			}
 
 			if (env.WARP) 订阅转换URL += "|" + (await ADD(env.WARP)).join("|");
 			//修复中文错误
@@ -185,14 +223,15 @@ export default {
 				base64Data = encodeBase64(result.replace(/\u0026/g, '&'))
 			}
 
+			// 构建响应头对象
+			const responseHeaders = {
+				"content-type": "text/plain; charset=utf-8",
+				"Profile-Update-Interval": `${SUBUpdateTime}`,
+				//"Subscription-Userinfo": `upload=${UD}; download=${UD}; total=${total}; expire=${expire}`,
+			};
+
 			if (订阅格式 == 'base64' || token == fakeToken) {
-				return new Response(base64Data, {
-					headers: {
-						"content-type": "text/plain; charset=utf-8",
-						"Profile-Update-Interval": `${SUBUpdateTime}`,
-						//"Subscription-Userinfo": `upload=${UD}; download=${UD}; total=${total}; expire=${expire}`,
-					}
-				});
+				return new Response(base64Data, { headers: responseHeaders });
 			} else if (订阅格式 == 'clash') {
 				subConverterUrl = `${subProtocol}://${subConverter}/sub?target=clash&url=${encodeURIComponent(订阅转换URL)}&insert=false&config=${encodeURIComponent(subConfig)}&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
 			} else if (订阅格式 == 'singbox') {
@@ -206,37 +245,15 @@ export default {
 			}
 			//console.log(订阅转换URL);
 			try {
-				const subConverterResponse = await fetch(subConverterUrl);
-
-				if (!subConverterResponse.ok) {
-					return new Response(base64Data, {
-						headers: {
-							"content-type": "text/plain; charset=utf-8",
-							"Profile-Update-Interval": `${SUBUpdateTime}`,
-							//"Subscription-Userinfo": `upload=${UD}; download=${UD}; total=${total}; expire=${expire}`,
-						}
-					});
-					//throw new Error(`Error fetching subConverterUrl: ${subConverterResponse.status} ${subConverterResponse.statusText}`);
-				}
+				const subConverterResponse = await fetch(subConverterUrl, { headers: { 'User-Agent': userAgentHeader } });//订阅转换
+				if (!subConverterResponse.ok) return new Response(base64Data, { headers: responseHeaders });
 				let subConverterContent = await subConverterResponse.text();
 				if (订阅格式 == 'clash') subConverterContent = await clashFix(subConverterContent);
-				return new Response(subConverterContent, {
-					headers: {
-						"Content-Disposition": `attachment; filename*=utf-8''${encodeURIComponent(FileName)}`,
-						"content-type": "text/plain; charset=utf-8",
-						"Profile-Update-Interval": `${SUBUpdateTime}`,
-						//"Subscription-Userinfo": `upload=${UD}; download=${UD}; total=${total}; expire=${expire}`,
-
-					},
-				});
+				// 只有非浏览器订阅才会返回SUBNAME
+				if (!userAgent.includes('mozilla')) responseHeaders["Content-Disposition"] = `attachment; filename*=utf-8''${encodeURIComponent(FileName)}`;
+				return new Response(subConverterContent, { headers: responseHeaders });
 			} catch (error) {
-				return new Response(base64Data, {
-					headers: {
-						"content-type": "text/plain; charset=utf-8",
-						"Profile-Update-Interval": `${SUBUpdateTime}`,
-						//"Subscription-Userinfo": `upload=${UD}; download=${UD}; total=${total}; expire=${expire}`,
-					}
-				});
+				return new Response(base64Data, { headers: responseHeaders });
 			}
 		}
 	}
@@ -305,25 +322,68 @@ async function nginx() {
 }
 
 async function sendMessage(type, ip, add_data = "") {
+	let ipInfo = null;
+	if (ip) {
+		try {
+			const response = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`);
+			if (response.status == 200) {
+				ipInfo = await response.json();
+			}
+		} catch (e) {
+			console.error("IP 查询失败:", e);
+		}
+	}
+
+	const tasks = [];
+
+	// Telegram 推送
 	if (BotToken !== '' && ChatID !== '') {
 		let msg = "";
-		const response = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`);
-		if (response.status == 200) {
-			const ipInfo = await response.json();
+		if (ipInfo) {
 			msg = `${type}\nIP: ${ip}\n国家: ${ipInfo.country}\n<tg-spoiler>城市: ${ipInfo.city}\n组织: ${ipInfo.org}\nASN: ${ipInfo.as}\n${add_data}`;
 		} else {
-			msg = `${type}\nIP: ${ip}\n<tg-spoiler>${add_data}`;
+			msg = `${type}\nIP: ${ip || '未知'}\n<tg-spoiler>${add_data}`;
 		}
 
 		let url = "https://api.telegram.org/bot" + BotToken + "/sendMessage?chat_id=" + ChatID + "&parse_mode=HTML&text=" + encodeURIComponent(msg);
-		return fetch(url, {
+		tasks.push(fetch(url, {
 			method: 'get',
 			headers: {
 				'Accept': 'text/html,application/xhtml+xml,application/xml;',
 				'Accept-Encoding': 'gzip, deflate, br',
 				'User-Agent': 'Mozilla/5.0 Chrome/90.0.4430.72'
 			}
-		});
+		}).catch(e => console.error("Telegram 推送异常:", e)));
+	}
+
+	// Bark 推送
+	if (BarkKey !== '') {
+		const cleanAddData = add_data.replace(/<\/?[^>]+(>|$)/g, "").trim();
+		let body = "";
+		if (ipInfo) {
+			const loc = [ipInfo.country, ipInfo.city].filter(Boolean).join(' ');
+			body = `IP: ${ip}\n位置: ${loc || '未知'}\n组织: ${ipInfo.org || '未知'}\nASN: ${ipInfo.as || '未知'}${cleanAddData ? '\n' + cleanAddData : ''}`;
+		} else {
+			body = `IP: ${ip || '未知'}${cleanAddData ? '\n' + cleanAddData : ''}`;
+		}
+
+		const barkUrl = `${BarkServer}/${BarkKey}`;
+		tasks.push(fetch(barkUrl, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json; charset=utf-8'
+			},
+			body: JSON.stringify({
+				title: type,
+				body: body,
+				group: FileName,
+				icon: "https://cloudflare.com/favicon.ico"
+			})
+		}).catch(e => console.error("Bark 推送异常:", e)));
+	}
+
+	if (tasks.length > 0) {
+		await Promise.allSettled(tasks);
 	}
 }
 
@@ -551,6 +611,13 @@ async function KV(request, env, txt = 'ADD.txt', guest) {
 			try {
 				const content = await request.text();
 				await env.KV.put(txt, content);
+				const lineCount = content ? content.trim().split('\n').length : 0;
+				const userAgentHeader = request.headers.get('User-Agent');
+				await sendMessage(
+					`#更新节点 ${FileName}`,
+					request.headers.get('CF-Connecting-IP'),
+					`UA: ${userAgentHeader}</tg-spoiler>\n域名: ${url.hostname}\n<tg-spoiler>入口: ${url.pathname}\n节点大小: ${content.length} 字符 (${lineCount} 行)</tg-spoiler>`
+				);
 				return new Response("保存成功");
 			} catch (error) {
 				console.error('保存KV时发生错误:', error);

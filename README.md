@@ -97,20 +97,31 @@
 </details>
 
 ## 📋 变量说明
-| 变量名 | 示例 | 必填 | 备注 | 
+| 变量名 | 示例 | 必填 | 备注 |
 |-|-|-|-|
-| TOKEN | `auto` | ✅ | 汇聚订阅的订阅配置路径地址，例如：`/auto` | 
-| GUEST | `test` | ❌ | 汇聚订阅的访客订阅TOKEN，例如：`/sub?token=test` | 
+| TOKEN | `auto` | ✅ | 汇聚订阅的订阅配置路径地址，例如：`/auto` |
+| GUEST | `test` | ❌ | 汇聚订阅的访客订阅TOKEN，例如：`/sub?token=test` |
 | LINK | `vless://b7a39...`,`vmess://ew0K...`,`https://sub...` | ❌ | 可同时放入多个节点链接与多个订阅链接，链接之间用换行做间隔（添加**KV命名空间**后，变量将不会使用）|
-| TGTOKEN | `6894123456:XXXXXXXXXX0qExVsBPUhHDAbXXXXXqWXgBA` | ❌ | 发送TG通知的机器人token | 
-| TGID | `6946912345` | ❌ | 接收TG通知的账户数字ID | 
+| TGTOKEN | `6894123456:XXXXXXXXXX0qExVsBPUhHDAbXXXXXqWXgBA` | ❌ | 发送TG通知的机器人token |
+| TGID | `6946912345` | ❌ | 接收TG通知的账户数字ID |
+| BARK_KEY | `fyvLxxxxxxxxxxxxSa7EUc` | ❌ | Bark 设备Key（配置后开启 Bark 推送） |
+| BARK_SERVER | `https://api.day.app` 或 `https://bark.example.com` | ❌ | Bark 推送服务器地址，默认为官方服务器 `https://api.day.app` |
+| ADMIN_USERNAME | `admin` | ❌ | 网页管理后台 Basic Auth 用户名 |
+| ADMIN_PASSWORD | `password123` | ❌ | 网页管理后台 Basic Auth 密码 |
 | SUBNAME | `CF-Workers-SUB` | ❌ | 订阅名称 |
-| SUBAPI | `SUBAPI.cmliussss.net` | ❌ | clash、singbox等 订阅转换后端 | 
-| SUBCONFIG | [https://raw.github.../ACL4SSR_Online_MultiCountry.ini](https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_MultiCountry.ini) | ❌ | clash、singbox等 订阅转换配置文件 | 
+| SUBAPI | `SUBAPI.cmliussss.net` | ❌ | clash、singbox等 订阅转换后端 |
+| SUBCONFIG | [https://raw.github.../ACL4SSR_Online_MultiCountry.ini](https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_MultiCountry.ini) | ❌ | clash、singbox等 订阅转换配置文件 |
 
 
-## ⚠️ 注意事项
-项目中，TGTOKEN和TGID在使用时需要先到Telegram注册并获取。其中，TGTOKEN是telegram bot的凭证，TGID是用来接收通知的telegram用户或者组的id。
+## ⚠️ 注意事项与通知说明
+1. **Telegram 通知**：`TGTOKEN` 与 `TGID` 需要先到 Telegram 注册机器人获取。
+2. **Bark 通知**：仅需在 Cloudflare 环境变量中配置 `BARK_KEY`（以及可选的自建服务器 `BARK_SERVER`）即可启用 iOS 实时推送，支持官方服务器及私有自建 Bark 服务器。
+3. **通知触发场景**：
+   - 📥 **有人拉取订阅**：客户端请求订阅内容时触发 (`#获取订阅`)；
+   - ✏️ **更新节点信息**：Web 页面成功保存并更新 KV 节点时触发 (`#更新节点`)；
+   - 🔐 **登录管理成功**：进入 Web 后台管理/编辑页面时触发 (`#登录管理`)；
+   - 🚫 **登录管理失败**：密码错误或未授权访问管理页面时触发 (`#登录尝试`)；
+   - ⚠️ **异常访问**：非法路由访问时触发 (`#异常访问`，需设置 `TG=1`)。
 
 
 ## ⭐ Star 星星走起
@@ -119,3 +130,4 @@
 
 # 🙏 致谢
 [Alice Networks LTD](https://alicenetworks.net/)，[mianayang](https://github.com/mianayang/myself/blob/main/cf-workers/sub/sub.js)、[ACL4SSR](https://github.com/ACL4SSR/ACL4SSR/tree/master/Clash/config)、[肥羊](https://sub.v1.mk/)
+
